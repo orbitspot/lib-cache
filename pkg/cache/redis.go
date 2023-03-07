@@ -5,13 +5,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/orbitspot/lib-metrics/pkg/log"
 	"github.com/go-redis/redis"
+	_ "github.com/joho/godotenv/autoload"
+	"github.com/orbitspot/lib-metrics/pkg/log"
 	"os"
 	"strconv"
 	"strings"
 	"time"
-	_ "github.com/joho/godotenv/autoload"
 )
 
 const (
@@ -26,6 +26,7 @@ type redisCache struct {
 	database   int
 	expiration int
 	name       string
+	password   string
 }
 
 // Redis godoc
@@ -79,27 +80,43 @@ func initConnection(conn string, n int) {
 	redisNewConn := redisCache{}
 	redisNewConn.host = strings.TrimSpace(redisArgs[0])
 	redisNewConn.port = strings.TrimSpace(redisArgs[1])
-	redisDatabase    := strings.TrimSpace(redisArgs[2])
-	redisExpiration  := strings.TrimSpace(redisArgs[3])
+	redisDatabase := strings.TrimSpace(redisArgs[2])
+	redisExpiration := strings.TrimSpace(redisArgs[3])
 	redisNewConn.name = strings.TrimSpace(redisArgs[4])
+
+	if len(redisArgs) == 6 {
+		redisNewConn.password = strings.TrimSpace(redisArgs[5])
+	} else if os.Getenv("REDIS_DEFAULT_PASS") != "" {
+		redisNewConn.password = os.Getenv("REDIS_DEFAULT_PASS")
+	}
+
 	if redisNewConn.host == "" || redisNewConn.port == "" || redisNewConn.name == "" {
-		log.Fatalf(err,"Redis WAS NOT STARTED because CONNECTION STRING is invalid! %s", envMsg)
+		log.Fatalf(err, "Redis WAS NOT STARTED because CONNECTION STRING is invalid! %s", envMsg)
 		return
 	}
 	if redisNewConn.database, err = strconv.Atoi(redisDatabase); err != nil {
-		log.Fatalf(err,"Redis WAS NOT STARTED because DATABASE is invalid! %s", envMsg)
+		log.Fatalf(err, "Redis WAS NOT STARTED because DATABASE is invalid! %s", envMsg)
 		return
 	}
 	if redisNewConn.expiration, err = strconv.Atoi(redisExpiration); err != nil {
-		log.Fatalf(err,"Redis WAS NOT STARTED because EXPIRATION is invalid! %s", envMsg)
+		log.Fatalf(err, "Redis WAS NOT STARTED because EXPIRATION is invalid! %s", envMsg)
 		return
 	}
 
 	// Create a new cache instance
-	redisNewConn.cache = redis.NewClient(&redis.Options{
-		Addr: redisNewConn.host + ":" + redisNewConn.port,
-		DB:   redisNewConn.database,
-	})
+	if redisNewConn.password == "" {
+		log.Warn("Redis: %s sem password definido", redisNewConn.name)
+		redisNewConn.cache = redis.NewClient(&redis.Options{
+			Addr: redisNewConn.host + ":" + redisNewConn.port,
+			DB:   redisNewConn.database,
+		})
+	} else {
+		redisNewConn.cache = redis.NewClient(&redis.Options{
+			Addr:     redisNewConn.host + ":" + redisNewConn.port,
+			DB:       redisNewConn.database,
+			Password: redisNewConn.password,
+		})
+	}
 
 	// Setup Default Redis Connection
 	if n == 0 {
@@ -108,7 +125,7 @@ func initConnection(conn string, n int) {
 
 	// Check if Redis connection was started
 	if err := redisNewConn.Ping(); err != nil {
-		log.Fatalf(err,"Redis WAS NOT STARTED due an error! %s", envMsg)
+		log.Fatalf(err, "Redis WAS NOT STARTED due an error! %s", envMsg)
 	}
 
 	R[redisNewConn.name] = &redisNewConn
@@ -116,7 +133,6 @@ func initConnection(conn string, n int) {
 	log.Info("Redis Connection '%s' STARTED! [%s]", redisNewConn.name, envMsg)
 	return
 }
-
 
 //////////////////////////////////////
 // DEFAULT IMPLEMENTATION FUNCTIONS //
@@ -142,7 +158,7 @@ func (r *redisCache) SetT(key string, object interface{}, expiration int) error 
 		log.Debug("Error while trying to SET cache with object %v - error: %v", jsonOject, err.Error())
 		return err
 	}
-	r.cache.Set(key, jsonOject, time.Duration(expiration) * time.Second)
+	r.cache.Set(key, jsonOject, time.Duration(expiration)*time.Second)
 	return nil
 }
 
@@ -165,7 +181,7 @@ func (r *redisCache) Get(key string, object interface{}) (error, bool) {
 }
 
 // Del godoc
-func (r *redisCache) Del(key string) error{
+func (r *redisCache) Del(key string) error {
 	// Delete by Pattern
 	if strings.Contains(key, "*") {
 		var cursor uint64
@@ -185,7 +201,6 @@ func (r *redisCache) Del(key string) error{
 	}
 	return nil
 }
-
 
 ///////////////////////////////////
 // DEFAULT ABSTRACTION FUNCTIONS //
@@ -221,7 +236,6 @@ func Del(key string) error {
 	return redisDefault.Del(key)
 }
 
-
 //////////////////////
 // HELPER FUNCTIONS //
 //////////////////////
@@ -229,7 +243,7 @@ func Del(key string) error {
 // PreparerKey godoc
 func PrepareKey(cacheName string, object interface{}, useMD5HashInObject bool) (string, error) {
 	var key = ""
-	if object != nil && len(cacheName) > 0  {
+	if object != nil && len(cacheName) > 0 {
 		jsonKey, err := json.Marshal(object)
 		if err != nil {
 			return key, err
@@ -241,7 +255,7 @@ func PrepareKey(cacheName string, object interface{}, useMD5HashInObject bool) (
 		}
 		return key, err
 	}
-	if object != nil && len(cacheName) <= 0  {
+	if object != nil && len(cacheName) <= 0 {
 		jsonKey, err := json.Marshal(object)
 		if err != nil {
 			return key, err
@@ -252,7 +266,7 @@ func PrepareKey(cacheName string, object interface{}, useMD5HashInObject bool) (
 			key = fmt.Sprintf("%s:%s", appName, string(jsonKey))
 		}
 	}
-	if object == nil && len(cacheName) > 0  {
+	if object == nil && len(cacheName) > 0 {
 		key = fmt.Sprintf("%s:%s", appName, cacheName)
 	}
 	return key, nil

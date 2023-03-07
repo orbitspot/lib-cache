@@ -1,8 +1,8 @@
-# Redis GO 
+# Redis GO
 
 Biblioteca para utilizar cache pelo Redis em seus projetos GO.
 
-Possui estratégia para lidar com Multiplas conexões para servidores/bancos diferentes! 
+Possui estratégia para lidar com Multiplas conexões para servidores/bancos diferentes!
 
 ![Biblioteca para cache em GO](https://assets.orbitspot.com/git/redis-golang.png)
 
@@ -21,10 +21,14 @@ APP_NAME=mytest
 SENTRY_DSN=
 
 # REDIS_CONNECTION_X=host,port,db,expiration(seconds),name(for connection)
-REDIS_CONNECTION_0=localhost,6379,15,  360,default  # DEFAULT connection, 10 minutes TTL
-REDIS_CONNECTION_1=localhost,6379,05,    0,store    # Infinite TTL
-REDIS_CONNECTION_2=localhost,6379,12,   10,price    # 10 seconds TTL
-REDIS_CONNECTION_3=localhost,6379,07,86400,banner   # 1 day TTL
+REDIS_CONNECTION_0=localhost,6379,15,  360,default,password123  # DEFAULT connection, 10 minutes TTL
+REDIS_CONNECTION_1=localhost,6379,05,    0,test_a,password123    # Infinite TTL
+REDIS_CONNECTION_2=localhost,6379,12,   10,test_b    # 10 seconds TTL
+REDIS_CONNECTION_3=localhost,6379,07,86400,test_c,password123   # 1 day TTL
+
+em caso de password geral
+REDIS_DEFAULT_PASS=generalPass123
+
 ```
 **Atencão: Solicitar para o time de DEVOPS preparar as variáveis para producão e configurar o pipeline para o seu projeto**
 
@@ -32,13 +36,13 @@ REDIS_CONNECTION_3=localhost,6379,07,86400,banner   # 1 day TTL
 ```
 const (
 	redis_default = "default"
-	redis_store   = "store"
-	redis_price   = "price"
-	redis_banner  = "banner"
+	redis_test_a   = "test_a"
+	redis_test_b   = "test_b"
+	redis_test_c  = "test_c"
 )
 ```
 
-3 - Dentro de seu código no arquivo `main.go`, importar a dependência e iniciar o Redis. 
+3 - Dentro de seu código no arquivo `main.go`, importar a dependência e iniciar o Redis.
 
 Veja o exemplo/tutorial completo abaixo:
 ```
@@ -49,9 +53,9 @@ import (
 
 const (
 	redis_default = "default"
-	redis_store   = "store"
-	redis_price   = "price"
-	redis_banner  = "banner"
+	redis_test_a   = "test_a"
+	redis_test_b   = "test_b"
+	redis_test_c  = "test_c"
 )
 
 func main(){
@@ -68,7 +72,7 @@ func main(){
 	}
 
 	// Health Check for a specific Connection
-	if err := cache.R[redis_store].Ping(); err != nil {
+	if err := cache.R[redis_test_a].Ping(); err != nil {
 		log.Error(err)
 		panic("Redis Offline")
 	}
@@ -129,40 +133,40 @@ func main(){
 
 	// Using Multi Databases Architecture
 
-	log.Boxed(log.LInfo,"MULTI DATABASES ARCHITECTURE - SET/GET a few K/V using STORE connection")
+	log.Boxed(log.LInfo,"MULTI DATABASES ARCHITECTURE - SET/GET a few K/V using test_a connection")
 	// Initialize variables and Set in Redis by Key
 	initialValue1 = "my-value-2"
 	initialValue2 = 7777777
 	initialStruct = &myStruct{Code: 5678, Description: "Just Other Test of Structs"}
-	err = cache.R[redis_store].Set("key1", &initialValue1)
-	err = cache.R[redis_store].SetT("key2", &initialValue2, 60)
-	err = cache.R[redis_store].Set("key3", &initialStruct)
+	err = cache.R[redis_test_a].Set("key1", &initialValue1)
+	err = cache.R[redis_test_a].SetT("key2", &initialValue2, 60)
+	err = cache.R[redis_test_a].Set("key3", &initialStruct)
 
 	// Declare return variables and Get it in Redis by Key
 	returnedValue1 = ""
 	returnedValue2 = 0
 	returnedStruct = &myStruct{}
-	err, found =  cache.R[redis_store].Get("key1", &returnedValue1)
-	err, found =  cache.R[redis_store].Get("key2", &returnedValue2)
-	err, found =  cache.R[redis_store].Get("key3", &returnedStruct)
+	err, found =  cache.R[redis_test_a].Get("key1", &returnedValue1)
+	err, found =  cache.R[redis_test_a].Get("key2", &returnedValue2)
+	err, found =  cache.R[redis_test_a].Get("key3", &returnedStruct)
 	log.Info("Returned values: [key1: %s, key2: %v, key3: %+v]", returnedValue1, returnedValue2, returnedStruct)
 
 	// Example for deleting Keys BY PATTERN
-	err = cache.R[redis_store].Del("key*") // Prefix 'key'
+	err = cache.R[redis_test_a].Del("key*") // Prefix 'key'
 	returnedValue2 = 0
-	if err, found = cache.R[redis_store].Get("key2", &returnedValue2); err != nil || !found {
+	if err, found = cache.R[redis_test_a].Get("key2", &returnedValue2); err != nil || !found {
 		log.Info("DELETE 'key2' - Key Deleted!")
 	}
 	log.Info("Returned values (DELETE key2): [key1: %s, key2: %v, key3: %+v]", returnedValue1, returnedValue2, returnedStruct)
 
 	// Example for deleting Keys
-	err = cache.R[redis_store].Del("key*")
+	err = cache.R[redis_test_a].Del("key*")
 	returnedValue1 = ""
 	returnedValue2 = 0
 	returnedStruct = &myStruct{}
-	err, found =  cache.R[redis_store].Get("key1", &returnedValue1)
-	err, found =  cache.R[redis_store].Get("key2", &returnedValue2)
-	err, found =  cache.R[redis_store].Get("key3", &returnedStruct)
+	err, found =  cache.R[redis_test_a].Get("key1", &returnedValue1)
+	err, found =  cache.R[redis_test_a].Get("key2", &returnedValue2)
+	err, found =  cache.R[redis_test_a].Get("key3", &returnedStruct)
 	log.Info("Returned values (DELETED BY PATTERN 'key*'): [key1: %s, key2: %v, key3: %+v]", returnedValue1, returnedValue2, returnedStruct)
 
 	log.Boxed(log.LInfo,"Tutorial for Finished!")
@@ -174,9 +178,9 @@ Resultado esperado do Terminal:
 2022/06/17 08:51:52 WARN : Sentry WAS NOT STARTED because there is no config >> sentry.go:25
 2022/06/17 08:51:52 INFO : Logging STARTED! [app: mytest] >> logger.go:48
 2022/06/17 08:51:52 INFO : Redis Connection 'default' STARTED! [[app: mytest, connection: [number: 0, details: localhost,6379,15,  360,default]] >> redis.go:121
-2022/06/17 08:51:52 INFO : Redis Connection 'store' STARTED! [[app: mytest, connection: [number: 0, details: localhost,6379,05,    0,store]] >> redis.go:121
-2022/06/17 08:51:52 INFO : Redis Connection 'price' STARTED! [[app: mytest, connection: [number: 0, details: localhost,6379,12,   10,price]] >> redis.go:121
-2022/06/17 08:51:52 INFO : Redis Connection 'banner' STARTED! [[app: mytest, connection: [number: 0, details: localhost,6379,07,86400,banner]] >> redis.go:121
+2022/06/17 08:51:52 INFO : Redis Connection 'test_a' STARTED! [[app: mytest, connection: [number: 0, details: localhost,6379,05,    0,test_a]] >> redis.go:121
+2022/06/17 08:51:52 INFO : Redis Connection 'test_b' STARTED! [[app: mytest, connection: [number: 0, details: localhost,6379,12,   10,test_b]] >> redis.go:121
+2022/06/17 08:51:52 INFO : Redis Connection 'test_c' STARTED! [[app: mytest, connection: [number: 0, details: localhost,6379,07,86400,test_c]] >> redis.go:121
 2022/06/17 08:51:52 INFO : 
 2022/06/17 08:51:52 INFO : ***********************************************************************************************************
 2022/06/17 08:51:52 INFO : **  SINGLE DATABASE ARCHITECTURE - SET/GET a few K/V using DEFAULT connection (with custom TTL example)  **
@@ -192,7 +196,7 @@ Resultado esperado do Terminal:
 2022/06/17 08:51:52 INFO : Returned values (DELETED BY PATTERN 'key*'): [key1: , key2: 0, key3: &{Code:0 Description:}] >> main.go:85
 2022/06/17 08:51:52 INFO : 
 2022/06/17 08:51:52 INFO : *******************************************************************************
-2022/06/17 08:51:52 INFO : **  MULTI DATABASES ARCHITECTURE - SET/GET a few K/V using STORE connection  **
+2022/06/17 08:51:52 INFO : **  MULTI DATABASES ARCHITECTURE - SET/GET a few K/V using test_a connection  **
 2022/06/17 08:51:52 INFO : *******************************************************************************
 2022/06/17 08:51:52 INFO : 
 2022/06/17 08:51:52 INFO : Returned values: [key1: my-value-2, key2: 7777777, key3: &{Code:5678 Description:Just Other Test of Structs}] >> main.go:106
